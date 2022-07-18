@@ -1,0 +1,51 @@
+version: '3.7'
+# Để start service chỉ định  docker compose : docker-compose tên_service 
+# Để start all service : docker-compose up 
+#Định nghĩa các file image của docker mà mình
+# muốn pull về
+services:
+  # tên service (đặt tên gì cũng được)
+  elasticsearch:
+    # chỉ định file image muốn pull về
+    # image : ten_image:version
+    image: elasticsearch:8.3.1
+    # tên của container docker
+    container_name: elasticsearch
+    # Ánh xạ ổ đĩa docker tới sự đến ổ đĩa của hệ thống 
+    volumes:
+      - ./elastic_data:/usr/share/elasticsearch/data
+    # port của file image
+    ports:
+      - 9200:9200
+      - 9300:9300
+    # nơi định các biến môi trường
+    environment:
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      discovery.type: "single-node"
+      ELASTIC_PASSWORD: "admin123"
+      xpack.security.enabled: "true"
+    # network đang sử dụng là gì
+    networks:
+      - elk
+
+  kibana:
+    image: kibana:8.3.1
+    container_name: kibana
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: admin123
+    depends_on:
+      - elasticsearch
+    networks:
+      - elk
+
+volumes:
+  setup:
+  elastic_data:
+
+networks:
+  elk:
+    driver: bridge
