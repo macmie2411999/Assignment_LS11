@@ -11,12 +11,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("home")
 public class DemoController {
 
+//    RabbitTemplate rabbitTemplate = new RabbitTemplate();
+
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
+
     @Autowired
     RabbitTemplate rabbitTemplate;
 
     // When user go to this url, a message is sent to Queue, then Receiver gets that message and processes it
     @GetMapping("/home")
     public void sendQueue(){
-        rabbitTemplate.convertAndSend(RabbitMQConfig.ROUTING_KEY, "Hello Queueeeee!");
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME,
+                RabbitMQConfig.ROUTING_KEY,
+                "Hello Queueeeee!");
     }
 }

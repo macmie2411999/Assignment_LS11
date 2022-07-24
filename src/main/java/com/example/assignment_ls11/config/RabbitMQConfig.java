@@ -4,6 +4,7 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
@@ -17,6 +18,15 @@ public class RabbitMQConfig {
     public static String QUEUE_NAME = "demo_queue";
     public static String EXCHANGE_NAME = "demo_exchange_queue";
     public static String ROUTING_KEY = "route_demo";
+
+    @Bean
+    public ConnectionFactory connectionFactory() {
+        CachingConnectionFactory connectionFactory = new CachingConnectionFactory("localhost", 5672);
+//        connectionFactory.setAddresses("5672");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin123");
+        return connectionFactory;
+    }
 
     // Create new Queue
     @Bean
@@ -36,6 +46,8 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(queue).to(exchange).with(RabbitMQConfig.ROUTING_KEY);
     }
 
+//    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
+
     // Create Consumer getting data from Queue
     @Bean
     SimpleMessageListenerContainer container(ConnectionFactory connectionFactory,
@@ -53,6 +65,7 @@ public class RabbitMQConfig {
 
     @Bean
     MessageListenerAdapter listenerAdapter(Receiver receiver){
-    return new MessageListenerAdapter(receiver, "MessageCineflix");
+        // defaultListenerMethod is the method want to process
+        return new MessageListenerAdapter(receiver, "receiveMessage");
     }
 }
