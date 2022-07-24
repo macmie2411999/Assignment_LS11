@@ -1,0 +1,139 @@
+# để start service chỉ định docker compose: docker-compose <ten_service>
+# để start all services: docker-compose up
+
+version: '3.7'
+
+# định nghĩa các files images mà Docker muốn pull về (mỗi image được gọi là một service)
+services:
+
+  # tên service (tự đặt)
+  elasticsearch:
+
+    # chỉ định các file images muốn pull về
+    # image: ten_image:version (tìm ở hub.docker.com)
+    image: elasticsearch:8.3.1
+
+    # tên của container docker (tự đặt)
+    container_name: elasticsearch
+
+    # ánh xạ ổ đĩa docker tới ổ đĩa hệ thống
+    
+    volumes:
+      # ./: tương ứng đường dẫn của folder hiện tại (là Central Log)
+      # tương ứng <url đĩa thật>:<url docker>: CentralLog/elastic_data:/usr/share/elasticsearch/data 
+      # khi download elasticsearch thì các files của nó sẽ được lưu trữ ở CentralLog/elastic_data
+      - ./elastic_data:/usr/share/elasticsearch/data
+
+    # port cua file image (có thể có 1 hoặc nhiều port)
+    ports:
+      - 9200:9200
+      - 9300:9300
+
+    # định các biến môi trường
+    environment:
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+
+      # elasticsearch có nhiều fluster (nhánh khác nhau), nhưng ở đây chỉ sử dụng 1 (single-node)
+      discovery.type: single-node
+
+      # username mặc định là elastic
+      # ELASTIC_PASSWORD: "admin123"
+      ELASTIC_PASSWORD: admin123
+      # xpack.security.enabled: "true": cần có username password để đăng nhập
+      xpack.security.enabled: "false"
+
+    # tên network được sử dụng (tự đặt tên và định nghĩa cùng cấp tầng services)
+    networks:
+      - elk
+    
+  kibana:
+    image: kibana:8.3.1
+    container_name: kibana
+    ports:
+      - 5601:5601
+    environment:
+
+      # chỉ định elasticsearch mà kibana show giao diện
+      # http://<name_container_designated_elasticsearch>:<port>
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+
+      # username mặc định luôn là kibana_system
+      ELASTICSEARCH_USERNAME: kibana_system
+
+      # khi chạy kibana lần đầu thì sử dụng password mặc định, sử dụng APIs mặc định của kibana để đổi password
+      ELASTICSEARCH_PASSWORD: admin123
+    depends_on:
+      - elasticsearch
+
+    # set cùng network với elasticsearch mà kibana show giao diện
+    networks:
+      - elk
+
+  logstash:
+    # bản dành cho mac m1
+    image: logstash:8.3.1
+    container_name: logstash
+    # thực thi luôn lệnh khi start logstash: logstash -f /usr/share/logstash/pipeline/logstash.conf
+    command: logstash -f /usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - 9600:9600
+      - 5044:5044
+    
+    volumes:
+      # tạo folder logstash chứa file logstash.yml, "ro" - read only, "z" - cho phép share tất cả nội dung files
+      # file logstash.yml để config kết nối tới elasticsearch
+      - ./logstash/logstash.yml:/usr/share/logstash/logstash.yml:ro,z
+
+      # tạo folder pipeline chứa file logstash.conf - file định nghĩa những files cần đầy lên elasticsearch
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro,z
+
+      # tạo folder logs - nơi chứa file log cần đẩy lên elasticsearch
+      # ./: tương ứng đường dẫn của folder hiện tại (là Central Log)
+      # tương ứng <url đĩa thật> 
+      - ./logs:/usr/share/logstash/logs:ro,z
+
+    environment:
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+
+    # đặt tính phụ thuộc, nếu elasticsearch chết thì logstash này cũng chết theo (tránh việc thiếu đồng bộ)
+    depends_on:
+      - elasticsearch
+    networks:
+      - elk
+  
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      # port để Producer đẩy data lên
+      - 5672:5672
+      #port để truy cập vào giao diện Web
+      - 15672:15672
+
+      # có thể có thêm các TCP port để đẩy data
+
+    environment:
+      # là hệ thống riêng nên có tài khoản (user mặc định là "admin") để truy cập
+      RABBITMQ_DEFAULT_USER: "admin"
+      RABBITMQ_DEFAULT_PASS: "admin123"
+    depends_on:
+      # nếu logstash chết thì rabbitmq chết theo
+      - logstash
+
+      # không có volumes vì không cần mapping (config files ngoài)
+
+    networks:
+      - elk
+
+# không bắt buộc
+volumes:
+  setup:
+  elastic_data:
+
+# định nghĩa networks giúp các services dùng chung ip (network) nhưng khác nhau về port trên cùng docker
+# cùng cấp với tầng services
+networks:
+  elk:
+
+    # driver cho phép tương tác giữa các services
+    driver: bridge
